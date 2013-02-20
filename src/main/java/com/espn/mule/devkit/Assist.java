@@ -1,5 +1,7 @@
 package com.espn.mule.devkit;
 
+import com.thoughtworks.paranamer.CachingParanamer;
+import com.thoughtworks.paranamer.Paranamer;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -12,13 +14,35 @@ import java.util.List;
  */
 public class Assist {
 
+    private static Paranamer paranamer = new CachingParanamer();
+
+    public static String[] getParameterNames(Method method) {
+        Class[] types = method.getParameterTypes();
+        String[] result = null;
+        try {
+            result = paranamer.lookupParameterNames(method); // throws ParameterNamesNotFoundException if not found
+        } catch (Exception e) {
+        }
+        if (result == null || result.length != types.length) {
+            result = new String[types.length];
+            if (result.length == 1) {
+                result[0] = "arg";
+            } else {
+                for (int i = 0; i < result.length; i++) {
+                    result[i] = "arg" + i;
+                }
+            }
+        }
+        return result;
+    }
+
     public static String methodToMule(String methodName) {
         String result = methodName.replaceAll("(\\p{javaUpperCase}+)", "-$1");
         result = result.replaceAll("(\\p{javaUpperCase}{2,}+)", "$1-");
         if (result.startsWith("-")) {
             result = result.substring(1, result.length());
         }
-        result = result.replaceAll("--", "-").toLowerCase();        
+        result = result.replaceAll("--", "-").toLowerCase();
         return result;
     }
 
@@ -93,11 +117,13 @@ public class Assist {
                     append(this.sampleXmlFileName).append(" ").
                     append(this.namespace).append(":").append(methodToMule(m.getName())).append("}\n");
             Class[] paramTypes = m.getParameterTypes();
+
+            String[] parameterNames = getParameterNames(m);
             if (paramTypes != null) {
                 for (int i = 0; i < paramTypes.length; i++) {
                     Class c = paramTypes[i];
                     sb.append("     * @param ");
-                    sb.append("arg").append(i).append(" ");
+                    sb.append(parameterNames[i]).append(" ");
                     sb.append(c.getName()).append("\n");
                 }
             }
@@ -144,6 +170,8 @@ public class Assist {
             sb.append(" ").append(m.getName()).append("(");
 
             Class[] paramTypes = m.getParameterTypes();
+            String[] parameterNames = getParameterNames(m);
+
             for (int i = 0; i < paramTypes.length; i++) {
                 Class c = paramTypes[i];
 
@@ -155,7 +183,7 @@ public class Assist {
                 } else {
                     sb.append(" ").append(c.getName());
                 }
-                sb.append(" arg").append(i);
+                sb.append(" ").append(parameterNames[i]);
             }
             if (paramTypes.length > 0) {
                 sb.append(" ");
@@ -182,7 +210,7 @@ public class Assist {
                 if (i > 0) {
                     sb.append(",");
                 }
-                sb.append("arg").append(i);
+                sb.append(parameterNames[i]);
             }
             sb.append(");\n");
             sb.append("    }\n\n");
@@ -205,9 +233,9 @@ public class Assist {
             sb.append("        <").append(namespace).append(":").append(methodToMule(m.getName()));
 
             Class[] paramTypes = m.getParameterTypes();
-
+            String[] parameterNames = getParameterNames(m);
             for (int i = 0; i < paramTypes.length; i++) {
-                sb.append(" arg").append(i).append("=\"\"");
+                sb.append(" ").append(parameterNames[i]).append("=\"\"");
             }
             sb.append("/>\n").append("    </flow>\n\n");
         }
@@ -228,8 +256,10 @@ public class Assist {
             sb.append("\n<!-- BEGIN_INCLUDE(").append(namespace).append(":").append(mname).append(") -->\n");
             sb.append("    <").append(namespace).append(":").append(mname);
             Class[] paramTypes = m.getParameterTypes();
+            String[] parameterNames = getParameterNames(m);
+
             for (int i = 0; i < paramTypes.length; i++) {
-                sb.append(" arg").append(i).append("=\"#[map-payload:").append("arg").append(i).append("]\"");
+                sb.append(" ").append(parameterNames[i]).append("=\"#[map-payload:").append(parameterNames[i]).append("]\"");
             }
             sb.append(" -->\n");
             sb.append("<!-- END_INCLUDE(").append(namespace).append(":").append(mname).append(") -->");
