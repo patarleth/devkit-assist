@@ -29,10 +29,10 @@ public class Assist {
         if (result == null || result.length != types.length) {
             result = new String[types.length];
             if (result.length == 1) {
-                result[0] = types[0].getName() + "_arg";
+                result[0] = (types[0].getSimpleName() + "_arg").toLowerCase();
             } else {
                 for (int i = 0; i < result.length; i++) {
-                    result[i] = types[0].getName() + "_arg" + i;
+                    result[i] = (types[0].getSimpleName() + "_arg" + i).toLowerCase();
                 }
             }
         }
