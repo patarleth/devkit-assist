@@ -3,10 +3,13 @@ package com.espn.mule.devkit;
 import com.thoughtworks.paranamer.CachingParanamer;
 import com.thoughtworks.paranamer.Paranamer;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -26,14 +29,35 @@ public class Assist {
         if (result == null || result.length != types.length) {
             result = new String[types.length];
             if (result.length == 1) {
-                result[0] = "arg";
+                result[0] = types[0].getName() + "_arg";
             } else {
                 for (int i = 0; i < result.length; i++) {
-                    result[i] = "arg" + i;
+                    result[i] = types[0].getName() + "_arg" + i;
                 }
             }
         }
         return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> Class<T> wrap(Class<T> c) {
+        return c.isPrimitive() ? (Class<T>) PRIMITIVES_TO_WRAPPERS.get(c) : c;
+    }
+    private static final Map<Class<?>, Class<?>> PRIMITIVES_TO_WRAPPERS;
+
+    static {
+        Map<Class<?>, Class<?>> primMap = new HashMap<Class<?>, Class<?>>();
+        primMap.put(boolean.class, Boolean.class);
+        primMap.put(byte.class, Byte.class);
+        primMap.put(char.class, Character.class);
+        primMap.put(double.class, Double.class);
+        primMap.put(float.class, Float.class);
+        primMap.put(int.class, Integer.class);
+        primMap.put(long.class, Long.class);
+        primMap.put(short.class, Short.class);
+        primMap.put(void.class, Void.class);
+
+        PRIMITIVES_TO_WRAPPERS = Collections.unmodifiableMap(primMap);
     }
 
     public static String methodToMule(String methodName) {
@@ -132,7 +156,7 @@ public class Assist {
             if (r.equals(Void.TYPE)) {
                 //print nothing
             } else {
-                sb.append("     * @return \n");
+                sb.append("     * @return \n").append("     * ").append(r.getName()).append("\n");
             }
 
             Class[] exceptions = m.getExceptionTypes();
@@ -142,15 +166,18 @@ public class Assist {
                     sb.append(" ").append(c.getName());
                 }
             }
-            sb.append("     */");
+            sb.append("     */\n");
         }
     }
 
     public static class ConnectorMethodHandler extends Handler {
 
         String variableName;
+        Class theClass;
 
-        public ConnectorMethodHandler(String variableName) {
+        public ConnectorMethodHandler(Class theClass,
+                String variableName) {
+            this.theClass = theClass;
             this.variableName = variableName;
         }
 
@@ -165,7 +192,14 @@ public class Assist {
             } else if (r.isArray()) {
                 sb.append(r.getComponentType().getName()).append("[]");
             } else {
-                sb.append(r.getName());
+                String str = r.getName();
+                String[] parts = str.split("\\$");
+                if (parts.length > 1) {
+                    String[] pacClassNames = parts[0].split("\\.");
+                    sb.append(pacClassNames[pacClassNames.length - 1]).append(".").append(parts[parts.length - 1]);
+                } else {
+                    sb.append(r.getSimpleName());
+                }
             }
             sb.append(" ").append(m.getName()).append("(");
 
@@ -173,15 +207,17 @@ public class Assist {
             String[] parameterNames = getParameterNames(m);
 
             for (int i = 0; i < paramTypes.length; i++) {
-                Class c = paramTypes[i];
+                Class paramTypeClass = paramTypes[i];
 
                 if (i > 0) {
                     sb.append(",");
                 }
-                if (c.isArray()) {
-                    sb.append(" ").append(c.getComponentType().getName()).append("[]");
+                sb.append(" ");
+                if (paramTypeClass.isArray()) {
+                    sb.append(paramTypeClass.getComponentType().getName());
+                    sb.append("[]");
                 } else {
-                    sb.append(" ").append(c.getName());
+                    sb.append(wrap(paramTypeClass).getSimpleName());
                 }
                 sb.append(" ").append(parameterNames[i]);
             }
@@ -200,11 +236,18 @@ public class Assist {
             }
 
             sb.append(" {\n");
-            if (r.equals(Void.TYPE)) {
-                sb.append("        ").append(variableName).append(m.getName()).append("(");
-            } else {
-                sb.append("        return ").append(variableName).append(m.getName()).append("(");
+            sb.append("        ");
+
+            if (!r.equals(Void.TYPE)) {
+                sb.append("return ");
             }
+
+            if (Modifier.isStatic(m.getModifiers())) {
+                sb.append(this.theClass.getSimpleName());
+            } else {
+                sb.append(variableName);
+            }
+            sb.append(".").append(m.getName()).append("(");
 
             for (int i = 0; i < paramTypes.length; i++) {
                 if (i > 0) {
@@ -213,7 +256,7 @@ public class Assist {
                 sb.append(parameterNames[i]);
             }
             sb.append(");\n");
-            sb.append("    }\n\n");
+            sb.append("    }\n");
         }
     }
 
@@ -237,7 +280,7 @@ public class Assist {
             for (int i = 0; i < paramTypes.length; i++) {
                 sb.append(" ").append(parameterNames[i]).append("=\"\"");
             }
-            sb.append("/>\n").append("    </flow>\n\n");
+            sb.append("/>\n").append("    </flow>\n");
         }
     }
 
@@ -266,11 +309,12 @@ public class Assist {
         }
     }
 
-    public static void run(String classname, String sampleXmlFileName, String namespace, String variableName) throws Exception {
+    public static String run(String classname, String sampleXmlFileName, String namespace, String variableName) throws Exception {
+        StringBuilder resultSb = new StringBuilder();
 
         Class c = Class.forName(classname);
 
-        ConnectorMethodHandler connectorMethodHandler = new ConnectorMethodHandler(variableName);
+        ConnectorMethodHandler connectorMethodHandler = new ConnectorMethodHandler(c, variableName);
         ConnectorSampleXmlHandler connectorSampleXmlHandler = new ConnectorSampleXmlHandler(namespace);
         JavadocHandler javadocHandler = new JavadocHandler(namespace, sampleXmlFileName);
         TestMuleConfigHandler testMuleConfigHandler = new TestMuleConfigHandler(namespace);
@@ -283,28 +327,29 @@ public class Assist {
 
         handlePublicMethods(c, handlers);
 
-        System.out.println(testMuleConfigHandler);
+        resultSb.append(testMuleConfigHandler);
 
-        System.out.println("\n\n\n");
-        System.out.println(" ---------------------------------------- ");
-        System.out.println("\n\n\n");
+        resultSb.append("\n\n\n");
+        resultSb.append(" ---------------------------------------- ");
+        resultSb.append("\n\n\n");
 
-        System.out.println(connectorSampleXmlHandler);
+        resultSb.append(connectorSampleXmlHandler);
 
-        System.out.println("\n\n\n");
-        System.out.println(" ---------------------------------------- ");
-        System.out.println("\n\n\n");
+        resultSb.append("\n\n\n");
+        resultSb.append(" ---------------------------------------- ");
+        resultSb.append("\n\n\n");
 
         for (String name : connectorMethodHandler.names) {
-            System.out.println(javadocHandler.resultMap.get(name));
-            System.out.println(connectorMethodHandler.resultMap.get(name));
-            System.out.println();
+            resultSb.append(javadocHandler.resultMap.get(name));
+            resultSb.append(connectorMethodHandler.resultMap.get(name));
+            resultSb.append("\n");
         }
 
-        System.out.println("\n\n\n");
-        System.out.println(" ---------------------------------------- ");
-        System.out.println("\n\n\n");
+        resultSb.append("\n\n\n");
+        resultSb.append(" ---------------------------------------- ");
+        resultSb.append("\n\n\n");
 
+        return resultSb.toString();
     }
 
     public static void main(String[] args) throws Exception {
@@ -320,6 +365,6 @@ public class Assist {
             variableName = args[3];
         }
 
-        run(classname, sampleXmlFileName, namespace, variableName);
+        System.out.println(run(classname, sampleXmlFileName, namespace, variableName));
     }
 }
