@@ -180,13 +180,13 @@ public class Assist {
 
     public static class JavadocItem {
 
-        String namespace;
-        String sampleXmlFileName;
-        String muleName;
-        String methodName;
-        String[][] paramClassVarNames;
-        String returnClassName;
-        String[] exceptions;
+        private String namespace;
+        private String sampleXmlFileName;
+        private String muleName;
+        private String methodName;
+        private String[][] paramClassVarNames;
+        private String returnClassName;
+        private String[] exceptions;
 
         public JavadocItem(String namespace,
                 String sampleXmlFilename,
@@ -240,8 +240,9 @@ public class Assist {
 
     public static class JavadocHandler extends Handler {
 
-        String namespace;
-        String sampleXmlFileName;
+        private String namespace;
+        private String sampleXmlFileName;
+        final ArrayList<JavadocItem> items = new ArrayList<JavadocItem>();
 
         public JavadocHandler(String namespace, String sampleXmlFileName) {
             this.namespace = namespace;
@@ -276,19 +277,24 @@ public class Assist {
         @Override
         public void handle(Method m) {
             StringBuilder sb = getStringBuilder(m);
-            sb.append(buildJavadocItem(m).toString());
+            JavadocItem item;
+            synchronized (this.items) {
+                item = buildJavadocItem(m);
+                this.items.add(item);
+            }
+            sb.append(item.toString());
         }
     }
 
     public static class MethodItem {
 
-        String variableName;
-        String staticClassName;
-        String muleName;
-        String methodName;
-        String[][] paramClassVarNames;
-        String returnClassName;
-        String[] exceptions;
+        private String variableName;
+        private String staticClassName;
+        private String muleName;
+        private String methodName;
+        private String[][] paramClassVarNames;
+        private String returnClassName;
+        private String[] exceptions;
 
         public MethodItem(String variableName,
                 String staticClassName,
@@ -370,9 +376,10 @@ public class Assist {
 
     public static class ConnectorMethodHandler extends Handler {
 
-        String variableName;
-        Class theClass;
-        final HashSet<Class> importPackages = new HashSet<Class>();
+        private String variableName;
+        private Class theClass;
+        private final HashSet<Class> importPackages = new HashSet<Class>();
+        final ArrayList<MethodItem> items = new ArrayList<MethodItem>();
 
         public ConnectorMethodHandler(Class theClass,
                 String variableName) {
@@ -420,7 +427,12 @@ public class Assist {
         @Override
         public void handle(Method m) {
             StringBuilder sb = getStringBuilder(m);
-            sb.append(buildMethodItem(m).toString());
+            MethodItem item;
+            synchronized (this.items) {
+                item = buildMethodItem(m);
+                items.add(item);
+            }
+            sb.append(item.toString());
         }
 
         public String buildImports() {
@@ -441,18 +453,48 @@ public class Assist {
             sb.append("\n");
             return sb.toString();
         }
+        /*
+         @Override
+         public String toString() {
+         String result = super.toString();
+         String imports = buildImports();
+         return imports + result;
+         }
+         */
+    }
+
+    public static class ConnectorHandler extends Handler {
+
+        JavadocHandler javadocHandler;
+        ConnectorMethodHandler connectorMethodHandler;
+
+        public ConnectorHandler(Class theClass, String variableName, String namespace, String sampleXmlFileName) {
+            this.javadocHandler = new JavadocHandler(namespace, sampleXmlFileName);
+            this.connectorMethodHandler = new ConnectorMethodHandler(theClass, variableName);
+        }
+
+        @Override
+        public void handle(Method m) {
+            this.javadocHandler.handle(m);
+            this.connectorMethodHandler.handle(m);
+        }
 
         @Override
         public String toString() {
-            String result = super.toString();
-            String imports = buildImports();
-            return imports + result;
+            StringBuilder sb = new StringBuilder();
+            sb.append(this.connectorMethodHandler.buildImports());
+            for (String name : this.connectorMethodHandler.names) {
+                sb.append(this.javadocHandler.resultMap.get(name));
+                sb.append(this.connectorMethodHandler.resultMap.get(name));
+                sb.append("\n");
+            }
+            return sb.toString();
         }
     }
 
     public static class TestMuleConfigHandler extends Handler {
 
-        String namespace;
+        private String namespace;
 
         public TestMuleConfigHandler(String namespace) {
             this.namespace = namespace;
@@ -476,7 +518,7 @@ public class Assist {
 
     public static class ConnectorSampleXmlHandler extends Handler {
 
-        String namespace;
+        private String namespace;
 
         public ConnectorSampleXmlHandler(String namespace) {
             this.namespace = namespace;
@@ -504,15 +546,18 @@ public class Assist {
 
         Class c = Class.forName(classname);
 
-        ConnectorMethodHandler connectorMethodHandler = new ConnectorMethodHandler(c, variableName);
+        ConnectorHandler connectorHandler = new ConnectorHandler(c, variableName, namespace, sampleXmlFileName);
+
+        //ConnectorMethodHandler connectorMethodHandler = new ConnectorMethodHandler(c, variableName);
         ConnectorSampleXmlHandler connectorSampleXmlHandler = new ConnectorSampleXmlHandler(namespace);
-        JavadocHandler javadocHandler = new JavadocHandler(namespace, sampleXmlFileName);
+        //JavadocHandler javadocHandler = new JavadocHandler(namespace, sampleXmlFileName);
         TestMuleConfigHandler testMuleConfigHandler = new TestMuleConfigHandler(namespace);
 
         ArrayList<Handler> handlers = new ArrayList<Handler>();
-        handlers.add(connectorMethodHandler);
+        //handlers.add(javadocHandler);
+        //handlers.add(connectorMethodHandler);
+        handlers.add(connectorHandler);
         handlers.add(connectorSampleXmlHandler);
-        handlers.add(javadocHandler);
         handlers.add(testMuleConfigHandler);
 
         handlePublicMethods(c, handlers);
@@ -529,12 +574,7 @@ public class Assist {
         resultSb.append(" ---------------------------------------- ");
         resultSb.append("\n\n\n");
 
-        resultSb.append(connectorMethodHandler.buildImports());
-        for (String name : connectorMethodHandler.names) {
-            resultSb.append(javadocHandler.resultMap.get(name));
-            resultSb.append(connectorMethodHandler.resultMap.get(name));
-            resultSb.append("\n");
-        }
+        resultSb.append(connectorHandler);
 
         resultSb.append("\n\n\n");
         resultSb.append(" ---------------------------------------- ");
