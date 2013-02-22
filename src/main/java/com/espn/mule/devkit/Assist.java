@@ -30,10 +30,18 @@ public class Assist {
         if (result == null || result.length != types.length) {
             result = new String[types.length];
             if (result.length == 1) {
-                result[0] = (types[0].getSimpleName() + "_arg").toLowerCase();
+                String simpleName = types[0].getSimpleName();
+                if (types[0].isArray()) {
+                    simpleName = types[0].getComponentType().getSimpleName();
+                }
+                result[0] = (simpleName + "_arg").toLowerCase();
             } else {
                 for (int i = 0; i < result.length; i++) {
-                    result[i] = (types[0].getSimpleName() + "_arg" + i).toLowerCase();
+                    String simpleName = types[i].getSimpleName();
+                    if (types[i].isArray()) {
+                        simpleName = types[i].getComponentType().getSimpleName();
+                    }
+                    result[i] = (simpleName + "_arg" + i).toLowerCase();
                 }
             }
         }
@@ -122,6 +130,114 @@ public class Assist {
         }
     }
 
+    private static String buildClassName(boolean wrapPrimatives, Class r) {
+        if (wrapPrimatives) {
+            r = wrap(r);
+        }
+
+        String result;
+
+        if (r.isArray()) {
+            result = r.getComponentType().getName() + "[]";
+        } else {
+            result = r.getName();
+        }
+
+        return fixInnerClassNames(result);
+    }
+
+    private static String fixInnerClassNames(String name) {
+        String[] parts = name.split("\\$");
+        if (parts.length > 1) {
+            String[] packageNames = parts[0].split("\\.");
+            name = packageNames[packageNames.length - 1] + "." + parts[1];
+        } else {
+            String[] packageNames = parts[0].split("\\.");
+            name = packageNames[packageNames.length - 1];
+        }
+        return name;
+    }
+
+    private static String[][] buildParamClassVarNames(boolean wrapPrimatives, Method m) {
+        String[][] paramClassVarNames = null;
+        ArrayList<String[]> paramClassVarNameList = new ArrayList<String[]>();
+
+        Class[] paramTypes = m.getParameterTypes();
+        String[] parameterNames = getParameterNames(m);
+        if (paramTypes != null) {
+            for (int i = 0; i < paramTypes.length; i++) {
+                String[] classVar = new String[]{
+                    buildClassName(wrapPrimatives, paramTypes[i]),
+                    parameterNames[i]
+                };
+
+                paramClassVarNameList.add(classVar);
+            }
+            paramClassVarNames = paramClassVarNameList.toArray(new String[paramClassVarNameList.size()][]);
+        }
+        return paramClassVarNames;
+    }
+
+    public static class JavadocItem {
+
+        String namespace;
+        String sampleXmlFileName;
+        String muleName;
+        String methodName;
+        String[][] paramClassVarNames;
+        String returnClassName;
+        String[] exceptions;
+
+        public JavadocItem(String namespace,
+                String sampleXmlFilename,
+                String methodName,
+                String[][] paramClassVarNames,
+                String returnClassName,
+                String[] exceptions) {
+            this.namespace = namespace;
+            this.sampleXmlFileName = sampleXmlFilename;
+            this.methodName = methodName;
+            this.muleName = methodToMule(methodName);
+            this.paramClassVarNames = paramClassVarNames;
+            this.returnClassName = returnClassName;
+            this.exceptions = exceptions;
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            sb.append("    /**\n");
+            sb.append("     * ").append(methodName).append("\n");
+            sb.append("     *\n");
+            sb.append("     * {@sample.xml ../../../doc/").
+                    append(this.sampleXmlFileName).append(" ").
+                    append(this.namespace).append(":").append(muleName).append("}\n");
+            if (paramClassVarNames != null) {
+                for (int i = 0; i < paramClassVarNames.length; i++) {
+                    String[] classVarNames = paramClassVarNames[i];
+                    sb.append("     * @param ");
+                    sb.append(classVarNames[1]).append(" ");
+                    sb.append(classVarNames[0]).append("\n");
+                }
+            }
+
+            if (this.returnClassName == null) {
+                //print nothing
+            } else {
+                sb.append("     * @return \n").append("     * ").append(this.returnClassName).append("\n");
+            }
+
+            if (exceptions != null && exceptions.length > 0) {
+                sb.append("     * @throws");
+                for (String c : exceptions) {
+                    sb.append(" ").append(c);
+                }
+            }
+            sb.append("     */\n");
+            return sb.toString();
+        }
+    }
+
     public static class JavadocHandler extends Handler {
 
         String namespace;
@@ -132,42 +248,123 @@ public class Assist {
             this.sampleXmlFileName = sampleXmlFileName;
         }
 
-        @Override
-        public void handle(Method m) {
-            StringBuilder sb = getStringBuilder(m);
-            sb.append("    /**\n");
-            sb.append("     * ").append(m.getName()).append("\n");
-            sb.append("     *\n");
-            sb.append("     * {@sample.xml ../../../doc/").
-                    append(this.sampleXmlFileName).append(" ").
-                    append(this.namespace).append(":").append(methodToMule(m.getName())).append("}\n");
-            Class[] paramTypes = m.getParameterTypes();
+        private JavadocItem buildJavadocItem(Method m) {
+            String methodName = m.getName();
 
-            String[] parameterNames = getParameterNames(m);
-            if (paramTypes != null) {
-                for (int i = 0; i < paramTypes.length; i++) {
-                    Class c = paramTypes[i];
-                    sb.append("     * @param ");
-                    sb.append(parameterNames[i]).append(" ");
-                    sb.append(c.getName()).append("\n");
-                }
-            }
+            String[][] paramClassVarNames = buildParamClassVarNames(false, m);
+            String returnClassName = null;
+            String[] exceptions = null;
 
             Class r = m.getReturnType();
             if (r.equals(Void.TYPE)) {
                 //print nothing
             } else {
-                sb.append("     * @return \n").append("     * ").append(r.getName()).append("\n");
+                returnClassName = r.getName();
             }
 
-            Class[] exceptions = m.getExceptionTypes();
-            if (exceptions.length > 0) {
-                sb.append("     * @throws");
-                for (Class c : exceptions) {
-                    sb.append(" ").append(c.getName());
+            Class[] exceptionClasses = m.getExceptionTypes();
+            if (exceptionClasses.length > 0) {
+                exceptions = new String[exceptionClasses.length];
+                for (int i = 0; i < exceptionClasses.length; i++) {
+                    Class c = exceptionClasses[i];
+                    exceptions[i] = c.getName();
                 }
             }
-            sb.append("     */\n");
+            return new JavadocItem(this.namespace, this.sampleXmlFileName, methodName, paramClassVarNames, returnClassName, exceptions);
+        }
+
+        @Override
+        public void handle(Method m) {
+            StringBuilder sb = getStringBuilder(m);
+            sb.append(buildJavadocItem(m).toString());
+        }
+    }
+
+    public static class MethodItem {
+
+        String variableName;
+        String staticClassName;
+        String muleName;
+        String methodName;
+        String[][] paramClassVarNames;
+        String returnClassName;
+        String[] exceptions;
+
+        public MethodItem(String variableName,
+                String staticClassName,
+                String muleName,
+                String methodName,
+                String[][] paramClassVarNames,
+                String returnClassName,
+                String[] exceptions) {
+            this.variableName = variableName;
+            this.staticClassName = staticClassName;
+            this.muleName = muleName;
+            this.methodName = methodName;
+            this.paramClassVarNames = paramClassVarNames;
+            this.returnClassName = returnClassName;
+            this.exceptions = exceptions;
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+
+            sb.append("    @Processor\n");
+            sb.append("    public ");
+
+            if (returnClassName == null) {
+                sb.append("void");
+            } else {
+                sb.append(returnClassName);
+            }
+            sb.append(" ").append(methodName).append("(");
+
+            for (int i = 0; i < paramClassVarNames.length; i++) {
+                if (i > 0) {
+                    sb.append(",");
+                }
+                sb.append(" ");
+                sb.append(paramClassVarNames[i][0]);
+                sb.append(" ").append(paramClassVarNames[i][1]);
+            }
+            if (paramClassVarNames.length > 0) {
+                sb.append(" ");
+            }
+
+            sb.append(")");
+
+            if (exceptions != null && exceptions.length > 0) {
+                sb.append(" throws");
+                for (String c : exceptions) {
+                    sb.append(" ").append(c);
+                }
+            }
+
+            sb.append(" {\n");
+            sb.append("        ");
+
+            if (returnClassName != null) {
+                sb.append("return ");
+            }
+
+            if (staticClassName != null) {
+                sb.append(staticClassName);
+            } else {
+                sb.append(variableName);
+            }
+            sb.append(".").append(methodName).append("(");
+
+            for (int i = 0; i < paramClassVarNames.length; i++) {
+                if (i > 0) {
+                    sb.append(",");
+                }
+                sb.append(paramClassVarNames[i][1]);
+            }
+            sb.append(");\n");
+            sb.append("    }\n");
+
+            return sb.toString();
         }
     }
 
@@ -184,86 +381,46 @@ public class Assist {
             this.importPackages.add(this.theClass);
         }
 
+        private MethodItem buildMethodItem(Method m) {
+            String methodName = m.getName();
+
+            String[][] paramClassVarNames = buildParamClassVarNames(true, m);
+            String returnClassName = null;
+            String[] exceptions = null;
+
+            Class r = m.getReturnType();
+            if (r.equals(Void.TYPE)) {
+                //print nothing so null
+            } else {
+                returnClassName = buildClassName(false, r);
+            }
+
+            Class[] exceptionClasses = m.getExceptionTypes();
+            if (exceptionClasses.length > 0) {
+                exceptions = new String[exceptionClasses.length];
+                for (int i = 0; i < exceptionClasses.length; i++) {
+                    Class c = exceptionClasses[i];
+                    exceptions[i] = c.getName();
+                }
+            }
+            String staticClassName = null;
+            if (Modifier.isStatic(m.getModifiers())) {
+                staticClassName = theClass.getSimpleName();
+            }
+            String muleName = methodToMule(methodName);
+            return new MethodItem(variableName,
+                    staticClassName,
+                    muleName,
+                    methodName,
+                    paramClassVarNames,
+                    returnClassName,
+                    exceptions);
+        }
+
         @Override
         public void handle(Method m) {
             StringBuilder sb = getStringBuilder(m);
-            sb.append("    @Processor\n");
-            sb.append("    public ");
-            Class r = m.getReturnType();
-            importPackages.add(r);
-
-            if (r.equals(Void.TYPE)) {
-                sb.append("void");
-            } else if (r.isArray()) {
-                sb.append(r.getComponentType().getName()).append("[]");
-            } else {
-                String str = r.getName();
-                String[] parts = str.split("\\$");
-                if (parts.length > 1) {
-                    String[] pacClassNames = parts[0].split("\\.");
-                    sb.append(pacClassNames[pacClassNames.length - 1]).append(".").append(parts[parts.length - 1]);
-                } else {
-                    sb.append(r.getSimpleName());
-                }
-            }
-            sb.append(" ").append(m.getName()).append("(");
-
-            Class[] paramTypes = m.getParameterTypes();
-            String[] parameterNames = getParameterNames(m);
-
-            for (int i = 0; i < paramTypes.length; i++) {
-                Class paramTypeClass = paramTypes[i];
-                importPackages.add(paramTypeClass);
-
-                if (i > 0) {
-                    sb.append(",");
-                }
-                sb.append(" ");
-                if (paramTypeClass.isArray()) {
-                    sb.append(paramTypeClass.getComponentType().getName());
-                    sb.append("[]");
-                } else {
-                    sb.append(wrap(paramTypeClass).getSimpleName());
-                }
-                sb.append(" ").append(parameterNames[i]);
-            }
-            if (paramTypes.length > 0) {
-                sb.append(" ");
-            }
-
-            sb.append(")");
-
-            Class[] exceptions = m.getExceptionTypes();
-            if (exceptions.length > 0) {
-                sb.append(" throws");
-                for (Class c : exceptions) {
-                    importPackages.add(c);
-                    sb.append(" ").append(c.getName());
-                }
-            }
-
-            sb.append(" {\n");
-            sb.append("        ");
-
-            if (!r.equals(Void.TYPE)) {
-                sb.append("return ");
-            }
-
-            if (Modifier.isStatic(m.getModifiers())) {
-                sb.append(this.theClass.getSimpleName());
-            } else {
-                sb.append(variableName);
-            }
-            sb.append(".").append(m.getName()).append("(");
-
-            for (int i = 0; i < paramTypes.length; i++) {
-                if (i > 0) {
-                    sb.append(",");
-                }
-                sb.append(parameterNames[i]);
-            }
-            sb.append(");\n");
-            sb.append("    }\n");
+            sb.append(buildMethodItem(m).toString());
         }
 
         public String buildImports() {

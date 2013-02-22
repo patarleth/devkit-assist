@@ -1,5 +1,6 @@
 package com.espn.mule.devkit;
 
+import com.sun.org.apache.bcel.internal.classfile.InnerClass;
 import java.util.Random;
 
 /**
@@ -39,7 +40,21 @@ public class TestBean {
         return new TheInnerClass();
     }
     
-    public OutterCass getOutterClass(Long l) {
-        return new OutterCass();
+    public TheInnerClass[] getTheInnerClassArray(int i) {
+        return new TheInnerClass[0];
+    }
+    
+    public OutterClass getOutterClass(Long l) {
+        return new OutterClass();
+    }
+
+    public OutterClass[] getOutterClassArray(Long l) {
+        return new OutterClass[0];
+    }
+
+    public void setOutterClassArray(OutterClass[] outterClassArray) {
+    }
+
+    public void setTheInnerClassArray(TheInnerClass[] innerClassArray) {
     }
 }
