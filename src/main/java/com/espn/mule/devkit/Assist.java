@@ -10,6 +10,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeSet;
 
 /**
  *
@@ -174,11 +175,13 @@ public class Assist {
 
         String variableName;
         Class theClass;
+        final HashSet<Class> importPackages = new HashSet<Class>();
 
         public ConnectorMethodHandler(Class theClass,
                 String variableName) {
             this.theClass = theClass;
             this.variableName = variableName;
+            this.importPackages.add(this.theClass);
         }
 
         @Override
@@ -187,6 +190,8 @@ public class Assist {
             sb.append("    @Processor\n");
             sb.append("    public ");
             Class r = m.getReturnType();
+            importPackages.add(r);
+
             if (r.equals(Void.TYPE)) {
                 sb.append("void");
             } else if (r.isArray()) {
@@ -208,6 +213,7 @@ public class Assist {
 
             for (int i = 0; i < paramTypes.length; i++) {
                 Class paramTypeClass = paramTypes[i];
+                importPackages.add(paramTypeClass);
 
                 if (i > 0) {
                     sb.append(",");
@@ -231,6 +237,7 @@ public class Assist {
             if (exceptions.length > 0) {
                 sb.append(" throws");
                 for (Class c : exceptions) {
+                    importPackages.add(c);
                     sb.append(" ").append(c.getName());
                 }
             }
@@ -257,6 +264,32 @@ public class Assist {
             }
             sb.append(");\n");
             sb.append("    }\n");
+        }
+
+        public String buildImports() {
+            StringBuilder sb = new StringBuilder();
+            TreeSet<String> resultSet = new TreeSet<String>();
+
+            synchronized (this.importPackages) {
+                Class[] classes = this.importPackages.toArray(new Class[this.importPackages.size()]);
+                for (Class c : classes) {
+                    if (c.getPackage() != null && !c.getPackage().getName().equals("java.lang")) {
+                        resultSet.add(c.getName());
+                    }
+                }
+                for (String i : resultSet) {
+                    sb.append("import ").append(i.replaceAll("\\$", ".")).append(";\n");
+                }
+            }
+            sb.append("\n");
+            return sb.toString();
+        }
+
+        @Override
+        public String toString() {
+            String result = super.toString();
+            String imports = buildImports();
+            return imports + result;
         }
     }
 
@@ -339,6 +372,7 @@ public class Assist {
         resultSb.append(" ---------------------------------------- ");
         resultSb.append("\n\n\n");
 
+        resultSb.append(connectorMethodHandler.buildImports());
         for (String name : connectorMethodHandler.names) {
             resultSb.append(javadocHandler.resultMap.get(name));
             resultSb.append(connectorMethodHandler.resultMap.get(name));

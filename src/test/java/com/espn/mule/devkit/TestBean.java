@@ -35,11 +35,11 @@ public class TestBean {
         return r.nextLong();
     }
     
-    public TheInnerClass getTheInnerClass() {
+    public TheInnerClass getTheInnerClass(int i) {
         return new TheInnerClass();
     }
     
-    public OutterCass getOutterClass() {
+    public OutterCass getOutterClass(Long l) {
         return new OutterCass();
     }
 }
