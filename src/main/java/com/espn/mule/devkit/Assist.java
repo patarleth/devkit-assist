@@ -391,6 +391,12 @@ public class Assist {
         private MethodItem buildMethodItem(Method m) {
             String methodName = m.getName();
 
+            Class[] paramClasses = m.getParameterTypes();
+            if (paramClasses != null) {
+                for (Class c : paramClasses) {
+                    this.importPackages.add(c);
+                }
+            }
             String[][] paramClassVarNames = buildParamClassVarNames(true, m);
             String returnClassName = null;
             String[] exceptions = null;
@@ -399,6 +405,7 @@ public class Assist {
             if (r.equals(Void.TYPE)) {
                 //print nothing so null
             } else {
+                this.importPackages.add(r);
                 returnClassName = buildClassName(false, r);
             }
 
@@ -407,6 +414,7 @@ public class Assist {
                 exceptions = new String[exceptionClasses.length];
                 for (int i = 0; i < exceptionClasses.length; i++) {
                     Class c = exceptionClasses[i];
+                    this.importPackages.add(c);
                     exceptions[i] = c.getName();
                 }
             }
@@ -453,14 +461,6 @@ public class Assist {
             sb.append("\n");
             return sb.toString();
         }
-        /*
-         @Override
-         public String toString() {
-         String result = super.toString();
-         String imports = buildImports();
-         return imports + result;
-         }
-         */
     }
 
     public static class ConnectorHandler extends Handler {

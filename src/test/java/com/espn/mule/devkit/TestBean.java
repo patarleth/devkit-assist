@@ -35,15 +35,15 @@ public class TestBean {
         Random r = new Random(seed);
         return r.nextLong();
     }
-    
+
     public TheInnerClass getTheInnerClass(int i) {
         return new TheInnerClass();
     }
-    
+
     public TheInnerClass[] getTheInnerClassArray(int i) {
         return new TheInnerClass[0];
     }
-    
+
     public OutterClass getOutterClass(Long l) {
         return new OutterClass();
     }
@@ -56,5 +56,12 @@ public class TestBean {
     }
 
     public void setTheInnerClassArray(TheInnerClass[] innerClassArray) {
+    }
+
+    public Random getRandom() {
+        return new Random();
+    }
+
+    public void setRandom(Random random) {
     }
 }
