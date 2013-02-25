@@ -28,3 +28,5 @@ what -
         2. math is the connector's namespace
         3. mathVar is the variable name of the instance of the class in the first argument
 
+
+Go fight win!
