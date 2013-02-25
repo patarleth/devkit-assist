@@ -8,7 +8,10 @@ I wanted a better starting place for all the copy/paste-y bits when exposing or 
 how - 
 
     1. run the mule devkit to generate the initial maven project.
-    2. edit the java connector/sample xml and test files removing the pieces you won't use. If this is the first time using the devkit, I recommend the tutorial on mulesofts site, however if you doin't care for their words and prefer mine, god help you - check out my mule_samples github site [[https://github.com/patarleth/mule_samples/wiki]] and more specifically my tutorial on devkit [[https://github.com/patarleth/mule_samples/wiki/Build-a-custom-mule-connector]]
+    2. edit the java connector/sample xml and test files removing the pieces you won't use. 
+        If this is the first time using the devkit, I recommend the tutorial on mulesofts site, however if you doin't care for their words and prefer mine, god help you - check out my mule_samples github site -
+            https://github.com/patarleth/mule_samples/wiki and more specifically my tutorial on devkit 
+            https://github.com/patarleth/mule_samples/wiki/Build-a-custom-mule-connector
     3. create a variable in the connector for the class you wish to expose to mule, mathVar in the example below
     4. run the silly class and generate the methods/sample xml/flows 
         * java com.espn.mule.devkit.Assist java.lang.Math Math-connector.xml.sample math mathVar
