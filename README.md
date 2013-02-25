@@ -3,7 +3,7 @@ devkit-assist
 
 why?
 
-I wanted a better starting place for all the copy/paste-y bits when exposing or 'porting' an existing or "legacy" class to mule as a "cloud connector" generated using devkit.
+I wanted a better starting place for all the copy/paste-y bits when exposing or 'porting' an existing "legacy" class as a "cloud connector" generated using devkit.
 
 how - 
 
