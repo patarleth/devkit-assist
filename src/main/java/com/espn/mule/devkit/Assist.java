@@ -535,11 +535,12 @@ public class Assist {
                 sb.append(" ").append(parameterNames[i]).append("=\"");
                 if (PRIMITIVES_TO_WRAPPERS.containsKey(paramTypes[i])) {
                     if (!paramTypes[i].equals(String.class)) {
-                        sb.append("0\"");
+                        sb.append("0");
                     }
                 } else {
-                    sb.append("null\"");
+                    sb.append("null");
                 }
+                sb.append("\"");
             }
             sb.append("/>\n").append("    </flow>\n");
         }
