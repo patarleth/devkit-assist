@@ -383,7 +383,7 @@ public class Assist {
                 }
                 if (paramClassVarNames[i][0].endsWith("[]")) {
                     String cn = paramClassVarNames[i][0].substring(0, paramClassVarNames[i][0].length() - 2);
-                    sb.append(paramClassVarNames[i][1]).append("toArray( new ").append(cn);
+                    sb.append(paramClassVarNames[i][1]).append(".toArray( new ").append(cn);
                     sb.append("[").append(paramClassVarNames[i][1]).append(".size()").append("] )");
                 } else {
                     sb.append(paramClassVarNames[i][1]);
