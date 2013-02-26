@@ -715,7 +715,7 @@ public class Assist {
     }
 
     public static void resizeMulePng(URL url, File outputFolder, String filename) {
-        if( !outputFolder.exists() ) {
+        if (!outputFolder.exists()) {
             outputFolder.mkdirs();
         }
         byte[] bytes = readBytes(url);
@@ -727,7 +727,13 @@ public class Assist {
                 "endpoint-24x16",
                 "endpoint-48x32",
                 "transformer-24x16",
-                "transformer-48x32"};
+                "transformer-48x32",
+                "connector-96x64",
+                "endpoint-96x64",
+                "transformer-96x64",
+                "connector-120x80",
+                "endpoint-120x80",
+                "transformer-120x80"};
 
             try {
                 ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
@@ -842,10 +848,10 @@ public class Assist {
 
         BufferedImage resizedCroppedImage = originalImage;
 
-        for (double i = (1d-stepSize); i > ratio; i = i - stepSize) {
+        for (double i = (1d - stepSize); i > ratio; i = i - stepSize) {
             int tWidth = (int) (i * oWidth);
             int tHeight = (int) (i * oHeight);
-            System.out.println( "step resizing oWidth " + oWidth + " oHeight " + oHeight + " tWidth " + tWidth + " tHeight " + tHeight);
+            //System.out.println("step resizing oWidth " + oWidth + " oHeight " + oHeight + " tWidth " + tWidth + " tHeight " + tHeight);
             resizedCroppedImage = resizeImageWithHint(resizedCroppedImage, type, tWidth, tHeight);
         }
 
