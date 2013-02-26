@@ -16,6 +16,6 @@ public class TestAssist {
     
     @Test
     public void testIconResize() throws Exception {
-        Assist.resizeMulePng("http://25.media.tumblr.com/tumblr_lsrjphblyh1qh8opwo1_400.jpg", "target/icons", "test");
+        Assist.resizeMulePng(TestAssist.class.getResource("/donald.jpg").toString(), "target/icons", "test");
     }
 }
