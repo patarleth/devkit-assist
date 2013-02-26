@@ -531,18 +531,48 @@ public class Assist {
 
             Class[] paramTypes = m.getParameterTypes();
             String[] parameterNames = getParameterNames(m);
+
+
+            ArrayList<Integer> arrayIndexes = new ArrayList<Integer>();
             for (int i = 0; i < paramTypes.length; i++) {
-                sb.append(" ").append(parameterNames[i]).append("=\"");
-                if (PRIMITIVES_TO_WRAPPERS.containsKey(paramTypes[i])) {
-                    if (!paramTypes[i].equals(String.class)) {
-                        sb.append("0");
-                    }
-                } else {
-                    sb.append("null");
+                Class c = paramTypes[i];
+                if (c.isArray()) {
+                    arrayIndexes.add(i);
                 }
-                sb.append("\"");
             }
-            sb.append("/>\n").append("    </flow>\n");
+
+
+            for (int i = 0; i < paramTypes.length; i++) {
+                if (paramTypes[i].isArray() == false) {
+                    sb.append(" ").append(parameterNames[i]);
+
+                    if (!PRIMITIVES_TO_WRAPPERS.containsKey(paramTypes[i])) {
+                        sb.append("-ref");
+                    }
+
+                    sb.append("=\"");
+                    if (PRIMITIVES_TO_WRAPPERS.containsKey(paramTypes[i])) {
+                        if (!paramTypes[i].equals(String.class)) {
+                            sb.append("0");
+                        }
+                    } else {
+                        sb.append("null");
+                    }
+                    sb.append("\"");
+                }
+            }
+            if (arrayIndexes.size() > 0) {
+                sb.append(">\n");
+                for (Integer index : arrayIndexes) {
+                    sb.append("            <").append(namespace).append(":").append(parameterNames[index]).append(" />\n");
+                }
+                sb.append("        </").append(namespace).append(":").append(methodToMule(m.getName()));
+                sb.append(">\n");
+            } else {
+                sb.append("/>\n");
+            }
+
+            sb.append("    </flow>\n");
         }
     }
 
