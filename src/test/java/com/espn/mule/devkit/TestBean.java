@@ -44,15 +44,15 @@ public class TestBean {
         return new TheInnerClass[0];
     }
 
-    public OutterClass getOutterClass(Long l) {
-        return new OutterClass();
+    public OuterClass getOuterClass(Long l) {
+        return new OuterClass();
     }
 
-    public OutterClass[] getOutterClassArray(Long l) {
-        return new OutterClass[0];
+    public OuterClass[] getOuterClassArray(Long l) {
+        return new OuterClass[0];
     }
 
-    public void setOutterClassArray(OutterClass[] outterClassArray) {
+    public void setOuterClassArray(OuterClass[] outterClassArray) {
     }
 
     public void setTheInnerClassArray(TheInnerClass[] innerClassArray) {

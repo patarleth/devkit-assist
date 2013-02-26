@@ -9,7 +9,7 @@ import org.junit.Test;
 public class TestAssist {
     @Test
     public void testTestBean() throws Exception {
-        String str = Assist.run("com.espn.mule.devkit.TestBean", "TestBean-connector.xml.sample", "test", "testBean");
+        String str = Assist.run("com.espn.mule.devkit.TestBean", "SampleScope-connector.xml.sample", "samplescope", "testBean");
         System.out.println(str);
     }
 }

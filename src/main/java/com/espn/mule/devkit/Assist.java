@@ -65,6 +65,16 @@ public class Assist {
         primMap.put(long.class, Long.class);
         primMap.put(short.class, Short.class);
         primMap.put(void.class, Void.class);
+        primMap.put(Boolean.class, Boolean.class);
+        primMap.put(Byte.class, Byte.class);
+        primMap.put(Character.class, Character.class);
+        primMap.put(Double.class, Double.class);
+        primMap.put(Float.class, Float.class);
+        primMap.put(Integer.class, Integer.class);
+        primMap.put(Long.class, Long.class);
+        primMap.put(Short.class, Short.class);
+        primMap.put(Void.class, Void.class);
+        primMap.put(String.class, String.class);
 
         PRIMITIVES_TO_WRAPPERS = Collections.unmodifiableMap(primMap);
     }
@@ -224,7 +234,7 @@ public class Assist {
             if (this.returnClassName == null) {
                 //print nothing
             } else {
-                sb.append("     * @return \n").append("     * ").append(this.returnClassName).append("\n");
+                sb.append("     * @return ").append(this.returnClassName).append("\n");
             }
 
             if (exceptions != null && exceptions.length > 0) {
@@ -331,7 +341,13 @@ public class Assist {
                     sb.append(",");
                 }
                 sb.append(" ");
-                sb.append(paramClassVarNames[i][0]);
+                if (paramClassVarNames[i][0].endsWith("[]")) {
+                    sb.append("List<");
+                    sb.append(paramClassVarNames[i][0].substring(0, paramClassVarNames[i][0].length() - 2));
+                    sb.append(">");
+                } else {
+                    sb.append(paramClassVarNames[i][0]);
+                }
                 sb.append(" ").append(paramClassVarNames[i][1]);
             }
             if (paramClassVarNames.length > 0) {
@@ -365,7 +381,13 @@ public class Assist {
                 if (i > 0) {
                     sb.append(",");
                 }
-                sb.append(paramClassVarNames[i][1]);
+                if (paramClassVarNames[i][0].endsWith("[]")) {
+                    String cn = paramClassVarNames[i][0].substring(0, paramClassVarNames[i][0].length() - 2);
+                    sb.append(paramClassVarNames[i][1]).append("toArray( new ").append(cn);
+                    sb.append("[").append(paramClassVarNames[i][1]).append(".size()").append("] )");
+                } else {
+                    sb.append(paramClassVarNames[i][1]);
+                }
             }
             sb.append(");\n");
             sb.append("    }\n");
@@ -510,7 +532,14 @@ public class Assist {
             Class[] paramTypes = m.getParameterTypes();
             String[] parameterNames = getParameterNames(m);
             for (int i = 0; i < paramTypes.length; i++) {
-                sb.append(" ").append(parameterNames[i]).append("=\"\"");
+                sb.append(" ").append(parameterNames[i]).append("=\"");
+                if (PRIMITIVES_TO_WRAPPERS.containsKey(paramTypes[i])) {
+                    if (!paramTypes[i].equals(String.class)) {
+                        sb.append("0\"");
+                    }
+                } else {
+                    sb.append("null\"");
+                }
             }
             sb.append("/>\n").append("    </flow>\n");
         }
@@ -533,10 +562,37 @@ public class Assist {
             Class[] paramTypes = m.getParameterTypes();
             String[] parameterNames = getParameterNames(m);
 
+            ArrayList<Integer> arrayIndexes = new ArrayList<Integer>();
             for (int i = 0; i < paramTypes.length; i++) {
-                sb.append(" ").append(parameterNames[i]).append("=\"#[map-payload:").append(parameterNames[i]).append("]\"");
+                Class c = paramTypes[i];
+                if (c.isArray()) {
+                    arrayIndexes.add(i);
+                }
             }
-            sb.append(" -->\n");
+
+            //put normal params here
+            for (int i = 0; i < paramTypes.length; i++) {
+                if (paramTypes[i].isArray() == false) {
+                    if (PRIMITIVES_TO_WRAPPERS.containsKey(paramTypes[i])) {
+                        sb.append(" ").append(parameterNames[i]).append("=\"#[map-payload:").append(parameterNames[i]).append("]\"");
+                    } else {
+                        //complex type add -ref bit
+                        sb.append(" ").append(parameterNames[i]).append("-ref=\"#[map-payload:").append(parameterNames[i]).append("]\"");
+                    }
+                }
+            }
+
+            if (arrayIndexes.size() > 0) {
+                for (Integer index : arrayIndexes) {
+                    String listParamName = parameterNames[index];
+                    sb.append(">\n");
+                    sb.append("        <").append(namespace).append(":");
+                    sb.append(listParamName).append(" ref=\"#[map-payload:").append(listParamName).append("]\" />\n");
+                }
+                sb.append("    </").append(namespace).append(":").append(mname).append(">\n");
+            } else {
+                sb.append(" />\n");
+            }
             sb.append("<!-- END_INCLUDE(").append(namespace).append(":").append(mname).append(") -->");
         }
     }
