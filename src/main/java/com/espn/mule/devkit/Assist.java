@@ -2,8 +2,15 @@ package com.espn.mule.devkit;
 
 import com.thoughtworks.paranamer.CachingParanamer;
 import com.thoughtworks.paranamer.Paranamer;
+import java.io.File;
+import java.io.FileFilter;
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLConnection;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -11,6 +18,22 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
+import java.awt.AlphaComposite;
+import java.awt.Dimension;
+import java.awt.Graphics2D;
+import java.awt.Point;
+import java.awt.Rectangle;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
+import java.awt.image.renderable.ParameterBlock;
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.IOException;
+import javax.imageio.ImageIO;
+import javax.imageio.stream.ImageInputStream;
+import javax.imageio.stream.ImageInputStreamImpl;
+import javax.media.jai.JAI;
+import javax.media.jai.RenderedOp;
 
 /**
  *
@@ -668,6 +691,202 @@ public class Assist {
         resultSb.append("\n\n\n");
 
         return resultSb.toString();
+    }
+
+    public static void resizeMulePng(String url, String outputFolder) throws MalformedURLException {
+        final String ext = "-connector-48x32.png";
+        FileFilter f = new FileFilter() {
+            @Override
+            public boolean accept(File pathname) {
+                return pathname.getName().endsWith(ext);
+            }
+        };
+        File d = new File(outputFolder);
+        File[] connectorFile = d.listFiles(f);
+        if (connectorFile != null && connectorFile.length > 0) {
+            String name = connectorFile[0].getName();
+            name = name.substring(0, name.length() - ext.length());
+            resizeMulePng(new URL(url), new File(outputFolder), name);
+        }
+    }
+
+    public static void resizeMulePng(String url, String outputFolder, String name) throws MalformedURLException {
+        resizeMulePng(new URL(url), new File(outputFolder), name);
+    }
+
+    public static void resizeMulePng(URL url, File outputFolder, String filename) {
+        if( !outputFolder.exists() ) {
+            outputFolder.mkdirs();
+        }
+        byte[] bytes = readBytes(url);
+
+        if (bytes != null && bytes.length > 0) {
+
+            String[] ext = new String[]{"connector-24x16",
+                "connector-48x32",
+                "endpoint-24x16",
+                "endpoint-48x32",
+                "transformer-24x16",
+                "transformer-48x32"};
+
+            try {
+                ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
+                BufferedImage image = ImageIO.read(bais);
+                File origFile = new File(outputFolder, "original.png");
+                ImageIO.write(image, "png", origFile);
+
+                BufferedImage croppedImage = cropImageToCenteredRatio(image, 3, 2);
+                File croppedFile = new File(outputFolder, "croppedOriginal.png");
+                ImageIO.write(croppedImage, "png", croppedFile);
+
+
+                for (String fileExt : ext) {
+                    String[] parts = fileExt.split("-");
+                    String[] whParts = parts[1].split("x");
+                    int width = Integer.valueOf(whParts[0]);
+                    int height = Integer.valueOf(whParts[1]);
+                    String newFilename = filename + "-" + fileExt + ".png";
+                    File f = new File(outputFolder, newFilename);
+                    resizeAndSavePngBytes(f, croppedImage, width, height);
+                }
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+        }
+
+    }
+
+    private static BufferedImage cropImageToCenteredRatio(BufferedImage image, double width, double height) {
+        System.out.println("cropImageToCenteredRatio width " + width + " height " + height);
+
+        double origWidth = image.getWidth();
+        double origHeight = image.getHeight();
+        System.out.println("origWidth " + origWidth);
+        System.out.println("origHeight " + origHeight);
+
+        double newRatio = width / height;
+        System.out.println("newRatio " + newRatio);
+        //newRation = 48/32 = 1.5
+
+        //Origin point where you want to start cropping
+        Point p;
+        Dimension d;
+
+        if (origWidth >= (newRatio * origHeight)) {
+            //wider than 3/2 raion as tall, leave the height alone and crop the width
+            System.out.println("wider than 3/2 raion as tall, leave the height alone and crop the width");
+            double newWidth = origHeight * newRatio;
+            System.out.println("newWidth " + newWidth + " origHeight " + origHeight);
+
+            int startX = (int) ((origWidth - newWidth) / 2);
+            System.out.println("startX " + startX);
+
+            p = new Point(startX, 0);
+            d = new Dimension((int) newWidth, (int) origHeight);
+        } else {
+            //taller than it is wide, leave the width alone crop the height
+            System.out.println("taller than it is wide, leave the width alone crop the height");
+            double newHeight = origWidth / newRatio;
+            System.out.println("newHeight " + newHeight + " origWidth " + origWidth);
+
+            int startY = (int) ((origHeight - newHeight) / 2);
+            System.out.println("startY " + startY);
+
+            p = new Point(0, startY);
+            d = new Dimension((int) origWidth, (int) newHeight);
+        }
+
+        Rectangle r = new Rectangle(p, d);
+
+        ParameterBlock pb = new ParameterBlock();
+        pb.addSource(image);
+
+        pb.add((float) r.getX());
+        pb.add((float) r.getY());
+        pb.add((float) r.getWidth());
+        pb.add((float) r.getHeight());
+
+        //Creates the cropped area
+        RenderedOp rop = JAI.create("crop", pb);
+
+        BufferedImage croppedImage = rop.getAsBufferedImage();
+        return croppedImage;
+    }
+
+    private static void resizeAndSavePngBytes(File f, BufferedImage image, int width, int height) {
+        try {
+
+            int type = image.getType() == 0 ? BufferedImage.TYPE_INT_ARGB : image.getType();
+
+            BufferedImage resizedCroppedImage = resizeImageWithHintLoop(.1d, image, type, width, height);
+
+            ImageIO.write(resizedCroppedImage, "png", f);
+        } catch (Throwable t) {
+            t.printStackTrace();
+        }
+    }
+
+    private static BufferedImage resizeImage(BufferedImage originalImage, int type, int IMG_WIDTH, int IMG_HEIGHT) {
+        BufferedImage resizedImage = new BufferedImage(IMG_WIDTH, IMG_HEIGHT, type);
+        Graphics2D g = resizedImage.createGraphics();
+        g.drawImage(originalImage, 0, 0, IMG_WIDTH, IMG_HEIGHT, null);
+        g.dispose();
+
+        return resizedImage;
+    }
+
+    private static BufferedImage resizeImageWithHintLoop(double stepSize, BufferedImage originalImage, int type, int IMG_WIDTH, int IMG_HEIGHT) {
+        int oWidth = originalImage.getWidth();
+        int oHeight = originalImage.getHeight();
+        double ratio = .1d + ((double) IMG_WIDTH / (double) oWidth);
+
+        BufferedImage resizedCroppedImage = originalImage;
+
+        for (double i = (1d-stepSize); i > ratio; i = i - stepSize) {
+            int tWidth = (int) (i * oWidth);
+            int tHeight = (int) (i * oHeight);
+            System.out.println( "step resizing oWidth " + oWidth + " oHeight " + oHeight + " tWidth " + tWidth + " tHeight " + tHeight);
+            resizedCroppedImage = resizeImageWithHint(resizedCroppedImage, type, tWidth, tHeight);
+        }
+
+        return resizeImageWithHint(resizedCroppedImage, type, IMG_WIDTH, IMG_HEIGHT);
+    }
+
+    private static BufferedImage resizeImageWithHint(BufferedImage originalImage, int type, int IMG_WIDTH, int IMG_HEIGHT) {
+
+        BufferedImage resizedImage = new BufferedImage(IMG_WIDTH, IMG_HEIGHT, type);
+        Graphics2D g = resizedImage.createGraphics();
+        g.drawImage(originalImage, 0, 0, IMG_WIDTH, IMG_HEIGHT, null);
+        g.dispose();
+        g.setComposite(AlphaComposite.Src);
+
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        //g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+
+        g.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION, RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY);
+        g.setRenderingHint(RenderingHints.KEY_COLOR_RENDERING, RenderingHints.VALUE_COLOR_RENDER_QUALITY);
+        g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
+        g.setRenderingHint(RenderingHints.KEY_DITHERING, RenderingHints.VALUE_DITHER_DISABLE);
+        g.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_OFF);
+
+        return resizedImage;
+    }
+
+    private static byte[] readBytes(URL url) {
+        byte[] result = null;
+        try {
+            URLConnection conn = url.openConnection();
+            result = new byte[conn.getContentLength()];
+            InputStream is = conn.getInputStream();
+            for (int i = 0; i < result.length; i++) {
+                int next = is.read();
+                result[i] = (byte) next;
+            }
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        }
+        return result;
     }
 
     public static void main(String[] args) throws Exception {
